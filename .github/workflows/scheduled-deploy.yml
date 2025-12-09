@@ -1,0 +1,31 @@
+name: Scheduled Auto-Deploy
+
+on:
+  schedule:
+    # 示例：每天北京时间早上 08:00 (UTC 00:00) 执行
+    - cron: '0 0 * * *'
+  # 允许手动点击按钮触发（用于测试）
+  workflow_dispatch:
+
+jobs:
+  trigger-galaxy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 重要：必须赋予写入权限，否则无法推送 Commit
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main  # 确保拉取的是 Galaxy 监听的分支
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "action@github.com"
+
+      - name: Create and Push Empty Commit
+        run: |
+          # --allow-empty 允许在没有文件修改的情况下提交
+          git commit --allow-empty -m "chore: trigger scheduled galaxy deploy [skip ci]"
+          git push origin main
