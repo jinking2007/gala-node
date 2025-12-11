@@ -2,8 +2,8 @@ name: Scheduled Auto-Deploy
 
 on:
   schedule:
-    # 示例：每天北京时间早上 08:00 (UTC 00:00) 执行
-    - cron: '0 0 * * *'
+    # 每天北京时间 10:30 (即 UTC 02:30) 执行
+    - cron: '30 2 * * *'
   # 允许手动点击按钮触发（用于测试）
   workflow_dispatch:
 
