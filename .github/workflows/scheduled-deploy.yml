@@ -2,30 +2,57 @@ name: Scheduled Auto-Deploy
 
 on:
   schedule:
-    # 每天北京时间 10:30 (即 UTC 02:30) 执行
-    - cron: '30 2 * * *'
-  # 允许手动点击按钮触发（用于测试）
+    # 策略：改为每小时的 30 分唤醒一次
+    # 然后在步骤里判断是否满足 23 小时间隔
+    - cron: '30 * * * *'
   workflow_dispatch:
 
 jobs:
   trigger-galaxy:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 重要：必须赋予写入权限，否则无法推送 Commit
+      contents: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: main  # 确保拉取的是 Galaxy 监听的分支
+          ref: main
+          # 关键点：必须拉取足够的历史记录才能查到上次提交时间
+          fetch-depth: 50 
 
       - name: Configure Git
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "action@github.com"
 
-      - name: Create and Push Empty Commit
+      - name: Check Time and Push
         run: |
-          # --allow-empty 允许在没有文件修改的情况下提交
-          git commit --allow-empty -m "chore: trigger scheduled galaxy deploy [skip ci]"
-          git push origin main
+          # 1. 获取当前时间戳
+          NOW=$(date +%s)
+          
+          # 2. 获取该 Bot 最后一次提交的时间戳 (如果没有则默认为 0)
+          # 使用 || echo 0 防止找不到记录时报错
+          LAST_COMMIT=$(git log -1 --format=%ct --author="GitHub Action Bot" || echo 0)
+          
+          # 3. 计算时间差 (秒)
+          DIFF=$((NOW - LAST_COMMIT))
+          
+          # 4. 定义 23 小时的秒数 (23 * 3600 = 82800)
+          TARGET_SECONDS=82800
+          
+          echo "Current Timestamp: $NOW"
+          echo "Last Run Timestamp: $LAST_COMMIT"
+          echo "Seconds since last run: $DIFF"
+          
+          # 5. 判断逻辑
+          if [ "$DIFF" -ge "$TARGET_SECONDS" ]; then
+            echo "✅ 已经超过 23 小时，执行更新..."
+            git commit --allow-empty -m "chore: trigger scheduled galaxy deploy [skip ci]"
+            git push origin main
+          else
+            echo "⏳ 距离上次运行仅过去 $DIFF 秒 (需要 $TARGET_SECONDS 秒)"
+            echo "本次跳过更新。"
+            # 正常退出，不报错，保持 Action 绿色
+            exit 0
+          fi
