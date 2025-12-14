@@ -2,57 +2,47 @@ name: Scheduled Auto-Deploy
 
 on:
   schedule:
-    # 策略：改为每小时的 30 分唤醒一次
-    # 然后在步骤里判断是否满足 22 小时间隔
-    - cron: '30 * * * *'
+    - cron: '15 2 * * *'  # 每天早上北京时间10:15更新(UTC时间为2:15)
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
-  trigger-galaxy:
+  update:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
+    
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: main
-          # 关键点：必须拉取足够的历史记录才能查到上次提交时间
-          fetch-depth: 50 
-
-      - name: Configure Git
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Update README with timestamp
         run: |
-          git config --global user.name "GitHub Action Bot"
-          git config --global user.email "action@github.com"
-
-      - name: Check Time and Push
-        run: |
-          # 1. 获取当前时间戳
-          NOW=$(date +%s)
+          # 生成当前时间
+          UTC_TIME=$(date -u +'%Y-%m-%d %H:%M:%S')
+          BJ_TIME=$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')
           
-          # 2. 获取该 Bot 最后一次提交的时间戳 (如果没有则默认为 0)
-          # 使用 || echo 0 防止找不到记录时报错
-          LAST_COMMIT=$(git log -1 --format=%ct --author="GitHub Action Bot" || echo 0)
+          # 在 README 末尾添加或更新时间戳
+          TIMESTAMP_SECTION="\n## 🕒 最后更新时间\n\n"
+          TIMESTAMP_SECTION+="**UTC**: \`$UTC_TIME\`  \n"
+          TIMESTAMP_SECTION+="**北京时间**: \`$BJ_TIME\`  \n\n"
+          TIMESTAMP_SECTION+="> ⚡ 此时间戳由 GitHub Actions 自动更新\n"
           
-          # 3. 计算时间差 (秒)
-          DIFF=$((NOW - LAST_COMMIT))
-          
-          # 4. 定义 23 小时的秒数 (22 * 3600 = 79200)
-          TARGET_SECONDS=79200
-          
-          echo "Current Timestamp: $NOW"
-          echo "Last Run Timestamp: $LAST_COMMIT"
-          echo "Seconds since last run: $DIFF"
-          
-          # 5. 判断逻辑
-          if [ "$DIFF" -ge "$TARGET_SECONDS" ]; then
-            echo "✅ 已经超过 22 小时，执行更新..."
-            git commit --allow-empty -m "chore: trigger scheduled galaxy deploy [skip ci]"
-            git push origin main
-          else
-            echo "⏳ 距离上次运行仅过去 $DIFF 秒 (需要 $TARGET_SECONDS 秒)"
-            echo "本次跳过更新。"
-            # 正常退出，不报错，保持 Action 绿色
-            exit 0
+          # 检查是否已经有时间戳部分
+          if grep -q "## 🕒 最后更新时间" README.md; then
+            sed -i '/## 🕒 最后更新时间/,/^## \|^# /{//!d}' README.md
+            sed -i '/## 🕒 最后更新时间/d' README.md
           fi
+          
+          echo -e "$TIMESTAMP_SECTION" >> README.md
+          
+      - name: Auto commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto deploy by Github Actions"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"
+          file_pattern: README.md
