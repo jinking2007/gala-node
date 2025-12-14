@@ -3,7 +3,7 @@ name: Scheduled Auto-Deploy
 on:
   schedule:
     # 策略：改为每小时的 30 分唤醒一次
-    # 然后在步骤里判断是否满足 23 小时间隔
+    # 然后在步骤里判断是否满足 22 小时间隔
     - cron: '30 * * * *'
   workflow_dispatch:
 
@@ -38,8 +38,8 @@ jobs:
           # 3. 计算时间差 (秒)
           DIFF=$((NOW - LAST_COMMIT))
           
-          # 4. 定义 23 小时的秒数 (23 * 3600 = 82800)
-          TARGET_SECONDS=82800
+          # 4. 定义 23 小时的秒数 (22 * 3600 = 79200)
+          TARGET_SECONDS=79200
           
           echo "Current Timestamp: $NOW"
           echo "Last Run Timestamp: $LAST_COMMIT"
@@ -47,7 +47,7 @@ jobs:
           
           # 5. 判断逻辑
           if [ "$DIFF" -ge "$TARGET_SECONDS" ]; then
-            echo "✅ 已经超过 23 小时，执行更新..."
+            echo "✅ 已经超过 22 小时，执行更新..."
             git commit --allow-empty -m "chore: trigger scheduled galaxy deploy [skip ci]"
             git push origin main
           else
